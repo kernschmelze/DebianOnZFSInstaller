@@ -144,9 +144,8 @@ my $fn_blacklist = '/etc/modprobe.d/blacklist.conf';
 # WWW net
 10.0.80.1		wwwgate
 10.0.80.100		develop develop.dummy.dummy
-10.0.80.200		abgestentet abgestentet.info
-10.0.80.201		cuttbos cuttbos.info cuttbos.de
-10.0.80.202		denkverbot denkverbot.info
+10.0.80.200		a b.info
+10.0.80.201		c d.info
 ';
 
 
