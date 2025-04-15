@@ -2011,9 +2011,15 @@ sub do_createbatch
 
 	# Create datasets:
 
-	$cmd .= "zfs create $rootpool/home\n";
+	# NOTE Dont create home dataset.
+	# Create a link later in postinstallation, before adding users.
+	# -> do_createpostinstallbatch()
+
+# 	$cmd .= "zfs create $rootpool/home\n";
 # 	$cmd .= "zpool set cachefile=none $rootpool/home\n";
-	$cmd .= "zfs create -o mountpoint=/root $rootpool/home/root\n";
+
+# 	$cmd .= "zfs create -o mountpoint=/root $rootpool/home/root\n";
+	$cmd .= "zfs create -o mountpoint=/root $rootpool/roothome\n";
 # 	$cmd .= "zpool set cachefile=none $rootpool/home/root\n";
 	$cmd .= "chmod 700 $mntprefix/root\n";
 
@@ -2623,7 +2629,16 @@ sub do_createpostinstallbatch
 
 	# part of do_queries repeated begin
 
-		getdrivesinfo();
+
+
+
+	# TODO
+	# make sure in /etc/systremd/system/zfs-import-target.wants the file zfs-import-cache.service is removed
+	# in its place maybe add a file simiolaar to zfs-import-bpool.service
+
+
+
+	getdrivesinfo();
 	# make a dialog for selection
 	my @driveseq;
 	foreach (sort keys %$$availdrives) {
@@ -2664,9 +2679,10 @@ print "drive '$_'\n";
 
 	# modified/enhanced (devpath) part of do_createbatch repeated begin
 
-		foreach (@drives) {
+	my $diskcount = 0;
+	foreach (@drives) {
 		my $DISK = $_;
-
+		$diskcount++;
 		# For flash-based storage, if the disk was previously used,
 		# you may wish to do a full-disk discard (TRIM/UNMAP),
 		# which can improve performance:
@@ -2675,7 +2691,9 @@ print "drive '$_'\n";
 		my $dr = $drives_byidtosd{$DISK};
 		my $devpath = "/dev/$diskbyid$DISK";
 		$theuserdrives .= ' ' . $devpath;
-
+		if ($diskcount == 2) {
+			$theuserdrives = ' mirror ' . $theuserdrives;
+		}
 		my $isflashtmp = `cat /sys/block/$dr/queue/rotational`;
 		if (index($isflashtmp, '0') != -1) {
 			$cmd3 .= "[0 1]blkdiscard -f $devpath\n";
@@ -2728,66 +2746,76 @@ print "drive '$_'\n";
 	# now create the incorporated smaller pools, for ensuring backup media compatibility
 	$crtuserzpool .= "zfs create $userpool/core880G\n";
 	$crtuserzpool .= "zfs set quota=880G $userpool/core880G\n";
+	$crtuserzpool .= "mkdir $userpool/core880G/home\n";
 
 	$crtuserzpool .= "zfs create $userpool/core880G/core220G\n";
 	$crtuserzpool .= "zfs set quota=220G $userpool/core880G/core220G\n";
+	$crtuserzpool .= "mkdir $userpool/core880G/core220G/home\n";
 
 	$crtuserzpool .= "zfs create $userpool/core880G/core220G/essential4G\n";
 	$crtuserzpool .= "zfs set quota=4G $userpool/core880G/core220G/essential4G\n";
+	$crtuserzpool .= "mkdir $userpool/core880G/core220G/essential4G/home\n";
 
 	$crtuserzpool .= "zfs create $userpool/core880G/core220G/essential4G/essential550M\n";
 	$crtuserzpool .= "zfs set quota=4G $userpool/core880G/core220G/essential550M\n";
+	$crtuserzpool .= "mkdir $userpool/core880G/core220G/essential550M/home\n";
 
 
 	$cmd3 .= $crtuserzpool;
+
+	$cmd3 .= "cd /\n";
+	$cmd3 .= "ln -s $userpool/core880G/core220G/essential4G/home /home\n";
+
 
 	##########
 	# TODO  before this, users need to be created (but not logged in)
 	# foreach @users
 		my $usern = $_;
-		my $prepuser =
-				"cp -avR /home/$usern $userpool/core880G/core220G/essential4G\n"
-# 					not necessary bc cp sets attrs:
-# 				. "mkdir /$userpool/core880G/core220G/essential4G/$usern\n"
-# 				. "chown $usern/$usern /$userpool/core880G/core220G/essential4G/$usern\n"
-# 				. "chmod 700 /$userpool/core880G/core220G/essential4G/$usern\n"
+		my $prepuser = ''
 
-				. "cd /home\n"
-				. "rm -r $usern\n"
+				# TODO check if exist
+# 				"cp -avR /home/$usern $userpool/core880G/core220G/essential4G/home/$usern\n"
+# # 					not necessary bc cp sets attrs:
+# # 				. "mkdir /$userpool/core880G/core220G/essential4G/$usern\n"
+# # 				. "chown $usern/$usern /$userpool/core880G/core220G/essential4G/$usern\n"
+# # 				. "chmod 700 /$userpool/core880G/core220G/essential4G/$usern\n"
+#
+# 				. "cd /home\n"
+# 				. "rm -r $usern\n"
 
 
 				# 4GB DVD should contain all extended essential data necessary for restart
 
-				. "ln -s /$userpool/core880G/core220G/essential4G/$usern $usern\n"
+				. "ln -s /$userpool/core880G/core220G/essential4G/home/$usern $usern\n"
 				. "cd /home/$usern\n"
 
 				# now that we created the home directory, we can link in the stuff
 
 				# 550MB CD for most crucial text etc data
 
-				. "mkdir /$userpool/core880G/core220G/essential4G/essential550M/$usern\n"
-				. "chown $usern:$usern /$userpool/core880G/core220G/essential4G/essential550M/$usern\n"
-				. "chmod 700 /$userpool/core880G/core220G/essential4G/essential550M/$usern\n"
-				. "ln -s /$userpool/core880G/core220G/essential4G/essential550M/$usern 550M\n"
+				. "mkdir /$userpool/core880G/core220G/essential4G/essential550M/home/$usern\n"
+				. "chown $usern:$usern /$userpool/core880G/core220G/essential4G/essential550M/home/$usern\n"
+				. "chmod 700 /$userpool/core880G/core220G/essential4G/essential550M/home/$usern\n"
+				. "ln -s /$userpool/core880G/core220G/essential4G/essential550M/home/$usern 550M\n"
 
 
 				# 220GB USB stick and small HDD region
-				. "mkdir /$userpool/core880G/core220G/$usern\n"
-				. "chown $usern:$usern /$userpool/core880G/core220G/$usern\n"
-				. "chmod 700 /$userpool/core880G/core220G/$usern\n"
-				. "ln -s /$userpool/core880G/core220G/$usern 220G\n"
+				. "mkdir /$userpool/core880G/core220G/home/$usern\n"
+				. "chown $usern:$usern /$userpool/core880G/core220G/home/$usern\n"
+				. "chmod 700 /$userpool/core880G/core220G/home/$usern\n"
+				. "ln -s /$userpool/core880G/core220G/home/$usern 220G\n"
 
 				# HDD 900GB-1TB
-				. "mkdir /$userpool/core880G/$usern\n"
-				. "chown $usern:$usern /$userpool/core880G/$usern\n"
-				. "chmod 700 /$userpool/core880G/$usern\n"
-				. "ln -s /$userpool/core880G/$usern 880G\n"
+				. "mkdir /$userpool/core880G/home/$usern\n"
+				. "chown $usern:$usern /$userpool/core880G/home/$usern\n"
+				. "chmod 700 /$userpool/core880G/home/$usern\n"
+				. "ln -s /$userpool/core880G/home/$usern 880G\n"
 
 				# HDD from 1TB
-				. "mkdir /$userpool/$usern\n"
-				. "chown $usern:$usern /$userpool/$usern\n"
-				. "chmod 700 /$userpool/$usern\n"
-				. "ln -s /$userpool/$usern INFI\n"
+				. "mkdir /$userpool/home/$usern\n"
+				. "chown $usern:$usern /$userpool/home/$usern\n"
+				. "chmod 700 /$userpool/home/$usern\n"
+				. "ln -s /$userpool/home/$usern INFI\n"
 
 
 				# create user work directories
@@ -2797,6 +2825,10 @@ print "drive '$_'\n";
 				. "ln -s 550M/code code\n"
 				. "mkdir 550M/private\n"
 				. "ln -s 550M/private private\n"
+
+
+
+
 
 
 				# create basic config:
