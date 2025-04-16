@@ -1900,7 +1900,7 @@ sub do_createbatch
 		# Create the boot pool using mirror:
 		my $thesedrives = (scalar @drives > 1) ? ' mirror' : '';
 		foreach (@drives) {
-			$thesedrives .= getdrivepath($_, 3);
+			$thesedrives .= ' -d ' . getdrivepath($_, 3);
 		}
 
 		$cmd .= "zpool create" .
@@ -1926,7 +1926,7 @@ sub do_createbatch
 		# Create the root pool:
 		$thesedrives = (scalar @drives > 1) ? ' mirror' : '';
 		foreach (@drives) {
-			$thesedrives .= getdrivepath($_, 4);
+			$thesedrives .= ' -d ' . getdrivepath($_, 4);
 		}
 
 		$cmd .= "zpool create" .
