@@ -1797,7 +1797,7 @@ sub getdrivepath
 
 # 	my $did = $drives_byidtosd{$drv};
 	my $did = $drv;
-	my $dp = " /dev/diskbyid$did";
+	my $dp = " /dev/$diskbyid$did";
 # 	my $dp = " /dev/disk/$did";
 # 	my $dp = " $did";
 
