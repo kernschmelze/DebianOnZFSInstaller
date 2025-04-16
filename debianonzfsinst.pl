@@ -37,12 +37,13 @@ my $use_zpool_attach = 0;
 my $forcezpoolcreate = ' -f';
 
 # sometimes no WWN link is in /dev/disk/by-id
-my $dontusewwn = 1;
+# my $dontusewwn = 1;
+# my $useuuid = 1;
 # sometimes even no ata link is in /dev/disk/by-id, after partprobe
 # so use sdX
-my $usesdX = 1;
-# my $diskbyid = 'disk/by-id/';
-my $diskbyid = '';
+# my $usesdX = 1;
+my $diskbyid = 'disk/by-id/';
+# my $diskbyid = '';
 
 
 
@@ -606,31 +607,92 @@ sub getdrivesinfo
 # convert sda, b, c... to /disk/by-id idents
 sub getdrivewwnid
 {
-	my $drive = shift;
+	my $thedrv = shift;
 
-	if ($usesdX) {
-		return $drive;
-	}
+	my $devdiskbyid = `ls -l /dev/disk/by-id`;
+	my @idlines = split( /\n/, $devdiskbyid);
+	my $id_ata;
+	my $id_md_name;
+	my $id_md_uuid;
+	my $id_scsi;
+	my $id_wwn;
+	my $id_usb;
+	foreach (@idlines) {
+		#
+		my ($devuuidlink, $dev) =
+			/^
+				[^ ]+\s+			# perms
+				\d+\s				# count
+				[^ ]+\s+			# u
+				[^ ]+\s+			# g
+				\d{1,2}\s			# dd
+				[a-zA-Z]{3}\s		# mm
+				\d{1,2}\s			# yy
+				\d{1,2}:\d{2}\s		# time
+				([^ ]+)\s
+				->\s
+				([^ ]+)
+			$/x;
 
-	my $devdiskbyid = `ls -l /dev/$diskbyid`;
-# 	my ($thiswwnid) = $devdiskbyid =~ /^.+?\s+([a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
+		next if (not defined $dev or not defined $devuuidlink);
+		# remove '../../'
+		$dev = substr( $dev,6);
+		next if ($dev ne $thedrv);
 
-	my $thiswwnid;
-	# search for wwn first
-	# then for usb, last for ata
-	if (not $dontusewwn) {
-		($thiswwnid) = $devdiskbyid =~ /^.+?\s+(wwn[a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
-	}
-	if (not defined $thiswwnid) {
-		($thiswwnid) = $devdiskbyid =~ /^.+?\s+(usb[a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
-		if (not defined $thiswwnid) {
-			($thiswwnid) = $devdiskbyid =~ /^.+?\s+(ata[a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
-			if (not defined $thiswwnid) {
-				($thiswwnid) = $devdiskbyid =~ /^.+?\s+([a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
-			}
+		my $typ = substr( $devuuidlink,0,4);
+		if ($typ eq 'wwn-') {
+			$id_wwn = $devuuidlink;
+		} elsif ($typ eq 'ata-') {
+			$id_ata = $devuuidlink;
+		} elsif ($typ eq 'md-u') {
+			$id_md_uuid = $devuuidlink;
+		} elsif ($typ eq 'md-n') {
+			$id_md_name = $devuuidlink;
+		} elsif ($typ eq 'scsi') {
+			$id_scsi = $devuuidlink;
+		} elsif ($typ eq 'usb-') {
+			$id_usb = $devuuidlink;
+		} else {
+			die;
 		}
+
+# 		print "$dev: $typ: $devuuidlink\n";
 	}
-	return $thiswwnid;
+
+
+	my $r;
+	if (defined $id_wwn) {
+		$r = $id_wwn;
+	} elsif (defined $id_scsi) {
+		$r = $id_scsi;
+	} elsif (defined $id_ata) {
+		$r = $id_ata;
+	} elsif (defined $id_md_uuid) {
+		$r = $id_md_uuid;
+	} elsif (defined $id_md_name) {
+		$r = $id_md_name;
+	} elsif (defined $id_usb) {
+		$r = $id_usb;
+	} else {
+		die;
+	}
+
+
+# 	/^.+?\s+(ata[a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
+#
+# # 	my ($thiswwnid) = $devdiskbyid =~ /^.+?\s+([a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
+#
+# 	my $thiswwnid;
+# 	# search for wwn first
+# 	# then for usb, last for ata
+# 	if (not $dontusewwn) {
+# 		($thiswwnid) = $devdiskbyid =~ /^.+?\s+(wwn[a-zA-Z_0-9:-]+)\s+\-\>\s+\.\.\/\.\.\/$drive$/m;
+# 	} elsif ($useuuid) {}
+#
+#
+#
+	return $r;
+
 }
 
 ##############################################################################
@@ -1735,16 +1797,16 @@ sub getdrivepath
 
 # 	my $did = $drives_byidtosd{$drv};
 	my $did = $drv;
-	my $dp = " /dev/$diskbyid$did";
+	my $dp = " /dev/diskbyid$did";
 # 	my $dp = " /dev/disk/$did";
 # 	my $dp = " $did";
 
-	if (defined $partno) {
-		if ($usesdX) {
-			$dp .= $partno;
-		} else {
+	if (defined $partno and not ($dp =~ /^uuid/)) {
+# 		if ($usesdX) {
+# 			$dp .= $partno;
+# 		} else {
 			$dp .= "-part$partno";
-		}
+# 		}
 	}
 
 	return $dp;
