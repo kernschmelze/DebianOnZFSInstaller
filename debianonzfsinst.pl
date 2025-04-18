@@ -15,6 +15,24 @@ use Data::Dumper;
 use Cwd;
 use POSIX ":sys_wait_h";
 
+
+
+
+
+
+
+
+
+my $os_ubuntu = 1;
+
+
+
+
+
+
+
+
+
 my $mntprefix = '/mnt';
 
 # I don't really understand the zed launch/stop thing in ehe example
@@ -1836,7 +1854,7 @@ sub do_createbatch
 	$cmd .= "sudo apt update\n";
 
 	# if not using gnome, do we really need this crap?
-	$cmd .= "gsettings set org.gnome.desktop.media-handling automount false\n";
+	$cmd .= "[0 1]gsettings set org.gnome.desktop.media-handling automount false\n";
 # 	$cmd .= "apt install --yes debootstrap gdisk zfsutils-linux\n";
 	$cmd .= "apt install --yes debootstrap\n";
 	$cmd .= "apt install --yes gdisk\n";
@@ -2179,6 +2197,73 @@ sub do_createbatch
 	$cmd .= "mount -t tmpfs tmpfs $mntprefix/run\n";
 	$cmd .= "mkdir $mntprefix/run/lock\n";
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	# create swap partition if user chose so
+
+
+
+
+	# get swap partition wwn/uuid whatever
+
+	# set it in /etc/fstab
+	# TODO
+# # swap was on /dev/md0p7 during installation
+# UUID=58f3687f-ad89-42a4-b463-a5da03c3f279 none            swap    sw              0       0
+# aber wwn path besser
+
+
+# ggfs dann swapon
+
+	# set it in grubb
+	# https://wiki.ubuntuusers.de/Archiv/pm-utils/
+	# TODO
+#
+#  Am wichtigsten ist dabei die Datei /etc/initramfs-tools/conf.d/resume. Wenn nicht, dann die Angaben in die entsprechenden Dateien schreiben bzw. korrigieren (und ggf. die GRUB-Konfiguration aktuallisieren).
+#
+# initrd aktualisieren:
+#
+# sudo update-initramfs -u
+#
+# System neu starten und STD testen.
+
+# alternativ:
+# o regenerate all of the initrd.img-* files (not recommended), use:
+#
+# sudo update-initramfs -c -k all
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	# Install the minimal system:
 	# The debootstrap command leaves the new system in an unconfigured state.
 	# An alternative to using debootstrap is to copy the entirety of a working system into the new ZFS root.
@@ -2337,6 +2422,30 @@ sub do_createbatch
 	# local clock drift can cause login failures:
 
 	$cmd2 .= "apt install systemd-timesyncd\n";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2807,133 +2916,24 @@ print "drive '$_'\n";
 	$crtuserzpool .= "zpool set cachefile=none $userpool\n";
 
 	# now create the incorporated smaller pools, for ensuring backup media compatibility
+	$crtuserzpool .= "mkdir $userpool/home\n";
 	$crtuserzpool .= "zfs create $userpool/core880G\n";
 	$crtuserzpool .= "zfs set quota=880G $userpool/core880G\n";
-	$crtuserzpool .= "mkdir $userpool/core880G/home\n";
-
 	$crtuserzpool .= "zfs create $userpool/core880G/core220G\n";
 	$crtuserzpool .= "zfs set quota=220G $userpool/core880G/core220G\n";
-	$crtuserzpool .= "mkdir $userpool/core880G/core220G/home\n";
-
 	$crtuserzpool .= "zfs create $userpool/core880G/core220G/essential4G\n";
 	$crtuserzpool .= "zfs set quota=4G $userpool/core880G/core220G/essential4G\n";
-	$crtuserzpool .= "mkdir $userpool/core880G/core220G/essential4G/home\n";
-
-	$crtuserzpool .= "zfs create $userpool/core880G/core220G/essential4G/essential550M\n";
-	$crtuserzpool .= "zfs set quota=4G $userpool/core880G/core220G/essential550M\n";
-	$crtuserzpool .= "mkdir $userpool/core880G/core220G/essential550M/home\n";
+# 	$crtuserzpool .= "mkdir $userpool/core880G/core220G/essential4G/home\n";
+# 	$crtuserzpool .= "zfs create $userpool/core880G/core220G/essential4G/essential550M\n";
+# 	$crtuserzpool .= "zfs set quota=4G $userpool/core880G/core220G/essential550M\n";
+# 	$crtuserzpool .= "mkdir $userpool/core880G/core220G/essential550M/home\n";
 
 
 	$cmd3 .= $crtuserzpool;
 
 	$cmd3 .= "cd /\n";
-	$cmd3 .= "ln -s $userpool/core880G/core220G/essential4G/home /home\n";
 
 
-	##########
-	# TODO  before this, users need to be created (but not logged in)
-	# foreach @users
-		my $usern = $_;
-		my $prepuser = ''
-
-				# TODO check if exist
-# 				"cp -avR /home/$usern $userpool/core880G/core220G/essential4G/home/$usern\n"
-# # 					not necessary bc cp sets attrs:
-# # 				. "mkdir /$userpool/core880G/core220G/essential4G/$usern\n"
-# # 				. "chown $usern/$usern /$userpool/core880G/core220G/essential4G/$usern\n"
-# # 				. "chmod 700 /$userpool/core880G/core220G/essential4G/$usern\n"
-#
-# 				. "cd /home\n"
-# 				. "rm -r $usern\n"
-
-
-				# 4GB DVD should contain all extended essential data necessary for restart
-
-				. "ln -s /$userpool/core880G/core220G/essential4G/home/$usern $usern\n"
-				. "cd /home/$usern\n"
-
-				# now that we created the home directory, we can link in the stuff
-
-				# 550MB CD for most crucial text etc data
-
-				. "mkdir /$userpool/core880G/core220G/essential4G/essential550M/home/$usern\n"
-				. "chown $usern:$usern /$userpool/core880G/core220G/essential4G/essential550M/home/$usern\n"
-				. "chmod 700 /$userpool/core880G/core220G/essential4G/essential550M/home/$usern\n"
-				. "ln -s /$userpool/core880G/core220G/essential4G/essential550M/home/$usern 550M\n"
-
-
-				# 220GB USB stick and small HDD region
-				. "mkdir /$userpool/core880G/core220G/home/$usern\n"
-				. "chown $usern:$usern /$userpool/core880G/core220G/home/$usern\n"
-				. "chmod 700 /$userpool/core880G/core220G/home/$usern\n"
-				. "ln -s /$userpool/core880G/core220G/home/$usern 220G\n"
-
-				# HDD 900GB-1TB
-				. "mkdir /$userpool/core880G/home/$usern\n"
-				. "chown $usern:$usern /$userpool/core880G/home/$usern\n"
-				. "chmod 700 /$userpool/core880G/home/$usern\n"
-				. "ln -s /$userpool/core880G/home/$usern 880G\n"
-
-				# HDD from 1TB
-				. "mkdir /$userpool/home/$usern\n"
-				. "chown $usern:$usern /$userpool/home/$usern\n"
-				. "chmod 700 /$userpool/home/$usern\n"
-				. "ln -s /$userpool/home/$usern INFI\n"
-
-
-				# create user work directories
-				. "mkdir 550M/official\n"
-				. "ln -s 550M/official official\n"
-				. "mkdir 550M/code\n"
-				. "ln -s 550M/code code\n"
-				. "mkdir 550M/private\n"
-				. "ln -s 550M/private private\n"
-
-
-
-
-
-
-				# create basic config:
-				# .xinitrc
-
-				# .cshrc
-				. "cd /home\n"
-				. "cd /home\n"
-				. "cd /home\n"
-				;
-
-
-
-
-
-
-
-
-
-				# Nvidia FW wird nicht autom inst!
-# 				https://nouveau.freedesktop.org/VideoAcceleration.html
-
-
-
-		$cmd3 .=
-
-# 	#		- Router
-#
-# 	if ($action eq $id_router) {
-# 		$cmd3 .= "apt-get install dnsmasq\n";
-# 		$cmd3 .= "$_write_dnsmasqconf_\n";
-# 		$cmd3 .= "$_sysmod_ $fn_dnsmasqconf net.ipv4.ip_forward=1 none\n";
-# 		$cmd3 .= "apt-get install --yes iptables-persistent\n";
-# 		$cmd3 .= "$_write_iptablesrules_\n";
-# 	}
-
-
-	$cmd3 .= $crtuserzpool;
-	$cmd3 .= "\n";
-	$cmd3 .= "\n";
-	$cmd3 .= "\n";
-	$cmd3 .= "\n";
 # 	Create a user account:
 #
 # Replace YOUR_USERNAME with your desired username:
@@ -2941,17 +2941,12 @@ print "drive '$_'\n";
 # username=YOUR_USERNAME
 #
 # zfs create rpool/home/$username
-	$cmd3 .= "adduser\n";
+# 	$cmd3 .= "adduser\n";
 # adduser $username
 #
 # cp -a /etc/skel/. /home/$username
 # chown -R $username:$username /home/$username
 # usermod -a -G audio,cdrom,dip,floppy,netdev,plugdev,sudo,video $username
-
-
-
-
-
 
 }
 
@@ -2963,8 +2958,10 @@ sub do_savebatchandconfigonlive
 # 	die if (write_a_file("$mountpref/$hostsfn", \$hosts_new));
 # 	die if (write_a_file("$mountpref/$aptsourceslistfn", $aptsourceslistr));
 # 	die if (write_a_file("$intfconfigfnam", \$intfconfigftxt));
-	if (write_a_file($intfconfigfnam, \$intfconfigftxt)) {
-		die("do_savebatchandconfig(): write_a_file('$intfconfigfnam', intfconfigtxt) FAILED\n");
+	if (not $os_ubuntu) {
+		if (write_a_file($intfconfigfnam, \$intfconfigftxt)) {
+			die("do_savebatchandconfig(): write_a_file('$intfconfigfnam', intfconfigtxt) FAILED\n");
+		}
 	}
 # 	die if (write_a_file("$hostnamefn", \$hostname_new));
 	if (write_a_file($hostnamefn, \$hostname_new)) {
